@@ -1,0 +1,15 @@
+fastapi
+uvicorn
+python-multipart
+pydub
+audioop-lts
+noisereduce
+numpy
+torch
+whisperx @ git+https://github.com/m-bain/whisperX.git
+openai
+websockets
+python-dotenv
+reportlab
+markdown
+
