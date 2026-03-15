@@ -4,7 +4,7 @@
 
 A local-first, GPU-accelerated web application designed to record, transcribe, and summarize meeting minutes for general-purpose meetings.
 
-The application captures audio from a MacBook browser, sends it over a secure Tailscale network to a local PC backend, processes the audio using local GPU resources, and streams the generated meeting minutes back to the client in real-time.
+The application captures audio from a browser, sends it over a secure Tailscale network to a local PC backend, processes the audio using local GPU resources, and streams the generated meeting minutes back to the client in real-time.
 
 ## Architecture & Tech Stack
 
