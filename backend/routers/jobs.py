@@ -23,6 +23,7 @@ def upload(
     audio: UploadFile = File(...),
     agenda: UploadFile = File(None),
     profile_id: str = Form(DEFAULT_PROFILE_ID),
+    use_local_llm: str = Form("false"),
 ):
     """Save an audio file (and optional agenda) and return a job ID.
 
@@ -55,6 +56,7 @@ def upload(
             has_agenda=bool(agenda_path),
             has_audio=True,
             profile_id=profile_id or DEFAULT_PROFILE_ID,
+            use_local_llm=use_local_llm.lower() == "true",
         )
 
         response = {"job_id": job_id, "audio_file": str(audio_path)}
@@ -78,6 +80,7 @@ def upload_transcript(
     transcript: UploadFile = File(...),
     agenda: UploadFile = File(None),
     profile_id: str = Form(DEFAULT_PROFILE_ID),
+    use_local_llm: str = Form("false"),
 ):
     """Save a raw ``.txt`` transcript (and optional agenda) and return a job ID.
 
@@ -108,6 +111,7 @@ def upload_transcript(
             has_agenda=bool(agenda_path),
             has_transcript=True,
             profile_id=profile_id or DEFAULT_PROFILE_ID,
+            use_local_llm=use_local_llm.lower() == "true",
         )
 
         response = {

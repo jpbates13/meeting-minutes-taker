@@ -6,6 +6,7 @@ WebSocket pipeline routes.
 """
 
 import asyncio
+import json
 from pathlib import Path
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
@@ -13,6 +14,7 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from audio_processing import process_audio
 from config import DATA_DIR, LLM_AUDIO_MODEL, LLM_TRANSCRIPT_MODEL, STEP_MESSAGES
 from llm import stream_minutes
+from local_llm import stream_minutes_local
 from storage import update_meta
 
 router = APIRouter()
@@ -104,7 +106,21 @@ async def websocket_pipeline(websocket: WebSocket, job_id: str):
         print(f"✅ Transcript saved for job {job_id}")
 
         await websocket.send_json({"status": "transcript_complete", "text": transcript})
-        await stream_minutes(websocket, job_dir, job_id, transcript, agenda_text, LLM_AUDIO_MODEL)
+
+        # Route to local LLM or OpenAI based on job meta
+        use_local = False
+        meta_path = job_dir / "meta.json"
+        if meta_path.exists():
+            try:
+                meta = json.loads(meta_path.read_text(encoding="utf-8"))
+                use_local = bool(meta.get("use_local_llm", False))
+            except Exception:
+                pass
+
+        if use_local:
+            await stream_minutes_local(websocket, job_dir, job_id, transcript, agenda_text)
+        else:
+            await stream_minutes(websocket, job_dir, job_id, transcript, agenda_text, LLM_AUDIO_MODEL)
 
     except WebSocketDisconnect:
         print(f"⚠️ WebSocket disconnected for job {job_id}")
@@ -158,7 +174,21 @@ async def websocket_transcript_pipeline(websocket: WebSocket, job_id: str):
             print(f"📝 Agenda loaded for job {job_id} ({len(agenda_text)} chars)")
 
         await websocket.send_json({"status": "transcript_complete", "text": transcript})
-        await stream_minutes(websocket, job_dir, job_id, transcript, agenda_text, LLM_TRANSCRIPT_MODEL)
+
+        # Route to local LLM or OpenAI based on job meta
+        use_local = False
+        meta_path = job_dir / "meta.json"
+        if meta_path.exists():
+            try:
+                meta = json.loads(meta_path.read_text(encoding="utf-8"))
+                use_local = bool(meta.get("use_local_llm", False))
+            except Exception:
+                pass
+
+        if use_local:
+            await stream_minutes_local(websocket, job_dir, job_id, transcript, agenda_text)
+        else:
+            await stream_minutes(websocket, job_dir, job_id, transcript, agenda_text, LLM_TRANSCRIPT_MODEL)
 
     except WebSocketDisconnect:
         print(f"⚠️ WebSocket disconnected for job {job_id}")

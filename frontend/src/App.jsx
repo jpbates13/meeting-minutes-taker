@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Mic, Upload, Clock, Activity } from "lucide-react";
+import { Mic, Upload, Clock, Activity, Cpu } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
 import useRecorder from "./hooks/useRecorder";
@@ -13,6 +13,7 @@ import ProfileSelector from "./components/ProfileSelector";
 
 export default function App() {
   const [selectedProfileId, setSelectedProfileId] = useState("general");
+  const [useLocalLlm, setUseLocalLlm] = useState(false);
   const [activeTab, setActiveTab] = useState("record");
 
   const {
@@ -149,6 +150,37 @@ export default function App() {
           onSelectProfile={setSelectedProfileId}
         />
 
+        {/* Local LLM Toggle */}
+        <div className="flex items-center justify-center">
+          <div className="flex items-center gap-3 bg-gray-900/60 backdrop-blur-sm px-5 py-3 rounded-xl border border-white/5">
+            <Cpu className={`w-4 h-4 transition-colors ${useLocalLlm ? 'text-violet-400' : 'text-gray-500'}`} />
+            <button
+              id="local-llm-toggle"
+              type="button"
+              role="switch"
+              aria-checked={useLocalLlm}
+              onClick={() => setUseLocalLlm((v) => !v)}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-500/50 ${
+                useLocalLlm ? 'bg-violet-600' : 'bg-gray-700'
+              }`}
+            >
+              <span
+                className={`inline-block h-4 w-4 transform rounded-full bg-white shadow-lg transition-transform duration-300 ${
+                  useLocalLlm ? 'translate-x-6' : 'translate-x-1'
+                }`}
+              />
+            </button>
+            <div className="flex flex-col">
+              <span className={`text-sm font-medium transition-colors ${useLocalLlm ? 'text-white' : 'text-gray-400'}`}>
+                Use Local LLM
+              </span>
+              <span className="text-[10px] text-gray-500 uppercase tracking-wider font-bold">
+                Zero Cost · High Privacy
+              </span>
+            </div>
+          </div>
+        </div>
+
         {/* Tab Content */}
         <div className="mt-8 relative min-h-[400px]">
           <AnimatePresence mode="wait">
@@ -166,7 +198,7 @@ export default function App() {
                   elapsedFormatted={elapsedFormatted}
                   savedChunks={savedChunks}
                   canvasRef={canvasRef}
-                  onStart={() => startRecording(selectedProfileId)}
+                  onStart={() => startRecording(selectedProfileId, useLocalLlm)}
                   onStop={stopRecording}
                   onAgendaChange={setAgendaFile}
                 />
@@ -184,9 +216,10 @@ export default function App() {
               >
                 <UploadShortcuts
                   isRecording={isRecording}
-                  onUploadAudio={(file) => uploadAudioFile(file, selectedProfileId)}
+                  useLocalLlm={useLocalLlm}
+                  onUploadAudio={(file) => uploadAudioFile(file, selectedProfileId, useLocalLlm)}
                   onUploadTranscript={(file, agenda) =>
-                    uploadTranscriptFile(file, agenda, selectedProfileId)
+                    uploadTranscriptFile(file, agenda, selectedProfileId, useLocalLlm)
                   }
                 />
               </motion.div>

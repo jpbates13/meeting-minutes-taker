@@ -21,11 +21,13 @@ export async function postAudio(
   filename,
   agendaFile = null,
   profileId = "general",
+  useLocalLlm = false,
 ) {
   const body = new FormData();
   body.append("audio", blob, filename);
   if (agendaFile) body.append("agenda", agendaFile, agendaFile.name);
   body.append("profile_id", profileId);
+  body.append("use_local_llm", useLocalLlm ? "true" : "false");
 
   const res = await fetch(`${API_URL}/upload`, { method: "POST", body });
   if (!res.ok) throw new Error(`Server responded ${res.status}: ${await res.text()}`);
@@ -41,8 +43,8 @@ export async function postAudio(
  * @param {File|null} agendaFile  Optional agenda file.
  * @returns {Promise<string>} job_id
  */
-export async function postAudioFile(file, agendaFile = null, profileId = "general") {
-  return postAudio(file, file.name, agendaFile, profileId);
+export async function postAudioFile(file, agendaFile = null, profileId = "general", useLocalLlm = false) {
+  return postAudio(file, file.name, agendaFile, profileId, useLocalLlm);
 }
 
 /**
@@ -56,11 +58,13 @@ export async function postTranscript(
   transcriptFile,
   agendaFile = null,
   profileId = "general",
+  useLocalLlm = false,
 ) {
   const body = new FormData();
   body.append("transcript", transcriptFile, transcriptFile.name);
   if (agendaFile) body.append("agenda", agendaFile, agendaFile.name);
   body.append("profile_id", profileId);
+  body.append("use_local_llm", useLocalLlm ? "true" : "false");
 
   const res = await fetch(`${API_URL}/upload-transcript`, { method: "POST", body });
   if (!res.ok) throw new Error(`Server responded ${res.status}: ${await res.text()}`);

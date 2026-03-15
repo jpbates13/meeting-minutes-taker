@@ -27,6 +27,7 @@ AUDIO_TARGET_BITRATE_BPS = 128_000
 # ---------------------------------------------------------------------------
 LLM_AUDIO_MODEL = "gpt-5.4"       # used after full audio → transcript pipeline
 LLM_TRANSCRIPT_MODEL = "gpt-5-mini"  # used for transcript-only jobs
+LOCAL_LLM_MODEL_ID = os.getenv("LOCAL_LLM_MODEL_ID", "Qwen/Qwen2.5-7B-Instruct")
 
 DEFAULT_PROFILE_ID = "general"
 DEFAULT_ORGANIZATION_NAME = "Your Organization"
@@ -71,7 +72,9 @@ STEP_MESSAGES: dict[str, str] = {
     "diarization_done":   "Speaker identification complete.",
     "formatting":         "Building speaker-attributed transcript...",
     "done":               "Audio processing complete.",
-    "generating_minutes": "Generating meeting minutes with AI...",
+    "generating_minutes":       "Generating meeting minutes with AI...",
+    "loading_local_llm":         "Loading local LLM into GPU memory...",
+    "generating_minutes_local":  "Generating meeting minutes with local LLM...",
 }
 
 # ---------------------------------------------------------------------------

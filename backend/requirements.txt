@@ -12,4 +12,6 @@ websockets
 python-dotenv
 reportlab
 markdown
-
+transformers
+accelerate
+bitsandbytes

@@ -71,6 +71,7 @@ def write_meta(
     profile_id: str,
     has_transcript: bool = False,
     has_audio: bool = False,
+    use_local_llm: bool = False,
 ) -> dict:
     """Write the initial ``meta.json`` for a new job and return it."""
     meta = {
@@ -82,6 +83,7 @@ def write_meta(
         "has_transcript": has_transcript,
         "has_minutes": False,
         "has_audio": has_audio,
+        "use_local_llm": use_local_llm,
         "title": None,
     }
     (job_dir / "meta.json").write_text(json.dumps(meta, indent=2), encoding="utf-8")

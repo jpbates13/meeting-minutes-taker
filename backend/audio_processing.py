@@ -9,6 +9,7 @@ Usage:
     transcript = process_audio("/path/to/audio.webm", "job-uuid")
 """
 
+import gc
 import os
 import logging
 from pathlib import Path
@@ -137,6 +138,7 @@ def transcribe_and_diarize(
 
         # Free alignment model before loading diarization pipeline
         del align_model
+        gc.collect()
         torch.cuda.empty_cache() if torch.cuda.is_available() else None
 
         # ---- Diarize ----
@@ -174,6 +176,7 @@ def transcribe_and_diarize(
     finally:
         # Deterministic cleanup — release GPU memory regardless of outcome
         del model
+        gc.collect()
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
             logger.info("[%s] GPU memory released", job_id)

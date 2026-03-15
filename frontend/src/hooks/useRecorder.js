@@ -134,7 +134,7 @@ export default function useRecorder() {
    * @param {string|null} sid  IndexedDB session to mark uploaded on success
    */
   const uploadRecording = useCallback(
-    async (blob, ext, sid, profileId = "general") => {
+    async (blob, ext, sid, profileId = "general", useLocalLlm = false) => {
       pipeline.setStatus("Uploading recording…");
       pipeline.resetOutput();
 
@@ -144,6 +144,7 @@ export default function useRecorder() {
           `recording${ext}`,
           agendaFileRef.current,
           profileId,
+          useLocalLlm,
         );
         console.log("Upload successful — job_id:", jobId);
         pipeline.setStatus(`Upload complete. Job ID: ${jobId}`);
@@ -166,7 +167,7 @@ export default function useRecorder() {
 
   // ── Recording lifecycle (chunked + IndexedDB) ──
 
-  const startRecording = useCallback(async (profileId = "general") => {
+  const startRecording = useCallback(async (profileId = "general", useLocalLlm = false) => {
     let stream;
     try {
       stream = await navigator.mediaDevices.getUserMedia({
@@ -226,7 +227,7 @@ export default function useRecorder() {
           `📦 Assembled ${chunkCount} chunks → ${(blob.size / 1024).toFixed(1)} KB (${mt})`,
         );
 
-        uploadRecording(blob, mimeToExt(mt), sid, profileId);
+        uploadRecording(blob, mimeToExt(mt), sid, profileId, useLocalLlm);
       } catch (err) {
         console.error("Failed to assemble recording:", err);
         pipeline.setStatus(
@@ -312,7 +313,7 @@ export default function useRecorder() {
   }, []);
 
   const uploadAudioFile = useCallback(
-    async (file, profileId = "general") => {
+    async (file, profileId = "general", useLocalLlm = false) => {
       if (!file) return;
       pipeline.setStatus("Uploading audio file…");
       pipeline.resetOutput();
@@ -321,6 +322,7 @@ export default function useRecorder() {
           file,
           agendaFileRef.current,
           profileId,
+          useLocalLlm,
         );
         console.log("Upload successful — job_id:", jobId);
         pipeline.setStatus(`Upload complete. Job ID: ${jobId}`);
@@ -334,12 +336,12 @@ export default function useRecorder() {
   );
 
   const uploadTranscriptFile = useCallback(
-    async (transcriptFile, agendaFile, profileId = "general") => {
+    async (transcriptFile, agendaFile, profileId = "general", useLocalLlm = false) => {
       if (!transcriptFile) return;
       pipeline.setStatus("Uploading transcript…");
       pipeline.resetOutput();
       try {
-        const jobId = await postTranscript(transcriptFile, agendaFile, profileId);
+        const jobId = await postTranscript(transcriptFile, agendaFile, profileId, useLocalLlm);
         console.log("Transcript upload successful — job_id:", jobId);
         pipeline.setStatus(`Transcript uploaded. Job ID: ${jobId}`);
         pipeline.connect(jobId, "ws-transcript", buildTranscriptOnlySteps());
