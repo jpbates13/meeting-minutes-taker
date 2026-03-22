@@ -1,6 +1,6 @@
 import { API_URL } from "../config";
 import { useEffect, useRef, useState } from "react";
-import { FileText, Download, CheckCircle2, FileCode2, Edit3, X, Save, ArrowLeft } from "lucide-react";
+import { FileText, Download, CheckCircle2, FileCode2, Edit3, X, Save, ArrowLeft, Shield, ShieldCheck, AlertTriangle } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
 function escapeHtml(text) {
@@ -103,8 +103,10 @@ export default function OutputPanels({
   transcript,
   minutes,
   minutesAiGenerated = false,
+  isFinalized = false,
   jobId,
   onSaveMinutes,
+  onFinalizeMinutes,
   onClose,
 }) {
   const [isEditingMinutes, setIsEditingMinutes] = useState(false);
@@ -112,6 +114,9 @@ export default function OutputPanels({
   const [isSavingMinutes, setIsSavingMinutes] = useState(false);
   const [saveError, setSaveError] = useState("");
   const [editorTab, setEditorTab] = useState("write");
+  const [showFinalizeConfirm, setShowFinalizeConfirm] = useState(false);
+  const [isFinalizing, setIsFinalizing] = useState(false);
+  const [finalizeError, setFinalizeError] = useState("");
   const minutesEditorRef = useRef(null);
 
   useEffect(() => {
@@ -254,7 +259,23 @@ export default function OutputPanels({
     });
   };
 
+  const handleFinalize = async () => {
+    if (!onFinalizeMinutes) return;
+    setIsFinalizing(true);
+    setFinalizeError("");
+    try {
+      await onFinalizeMinutes();
+      setShowFinalizeConfirm(false);
+    } catch (error) {
+      console.error("Failed to finalize:", error);
+      setFinalizeError("Failed to finalize. Please try again.");
+    } finally {
+      setIsFinalizing(false);
+    }
+  };
+
   return (
+    <>
     <motion.div 
       initial={{ opacity: 0, y: 15 }}
       animate={{ opacity: 1, y: 0 }}
@@ -327,7 +348,13 @@ export default function OutputPanels({
               <div>
                 <h2 className="text-xl font-semibold text-white tracking-tight flex items-center gap-2">
                   Meeting Minutes
-                  {minutes && minutes.trim() && !minutesAiGenerated && (
+                  {isFinalized && (
+                    <span className="flex items-center gap-1.5 text-xs font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded-full">
+                      <ShieldCheck className="w-3.5 h-3.5" />
+                      Finalized
+                    </span>
+                  )}
+                  {!isFinalized && minutes && minutes.trim() && !minutesAiGenerated && (
                     <CheckCircle2 className="w-4 h-4 text-emerald-500" title="Human reviewed" />
                   )}
                 </h2>
@@ -337,15 +364,17 @@ export default function OutputPanels({
             <div className="flex items-center gap-2">
               {jobId && (
                 <>
-                  <button
-                    onClick={startMinutesEdit}
-                    disabled={!minutes || !minutes.trim()}
-                    className="flex items-center gap-2 px-3 py-1.5 text-xs font-semibold bg-white/5 hover:bg-white/10 text-white rounded-lg transition-colors border border-white/10 disabled:opacity-50 disabled:cursor-not-allowed group/btn"
-                    title="Edit Minutes"
-                  >
-                    <Edit3 className="w-4 h-4 text-purple-400 group-hover/btn:scale-110 transition-transform" />
-                    <span className="hidden sm:inline">Edit</span>
-                  </button>
+                  {!isFinalized && (
+                    <button
+                      onClick={startMinutesEdit}
+                      disabled={!minutes || !minutes.trim()}
+                      className="flex items-center gap-2 px-3 py-1.5 text-xs font-semibold bg-white/5 hover:bg-white/10 text-white rounded-lg transition-colors border border-white/10 disabled:opacity-50 disabled:cursor-not-allowed group/btn"
+                      title="Edit Minutes"
+                    >
+                      <Edit3 className="w-4 h-4 text-purple-400 group-hover/btn:scale-110 transition-transform" />
+                      <span className="hidden sm:inline">Edit</span>
+                    </button>
+                  )}
                   <button
                     onClick={handleExportMinutes}
                     disabled={!minutes || !minutes.trim()}
@@ -355,18 +384,38 @@ export default function OutputPanels({
                     <Download className="w-4 h-4 text-emerald-400 group-hover/btn:scale-110 transition-transform" />
                     <span className="hidden sm:inline">Export PDF</span>
                   </button>
+                  {!isFinalized && minutes && minutes.trim() && (
+                    <button
+                      onClick={() => setShowFinalizeConfirm(true)}
+                      className="flex items-center gap-2 px-3 py-1.5 text-xs font-semibold bg-red-500/10 hover:bg-red-500/20 text-red-300 hover:text-red-200 rounded-lg transition-colors border border-red-500/20 hover:border-red-500/30 group/btn"
+                      title="Finalize Minutes & Purge Raw Data"
+                    >
+                      <Shield className="w-4 h-4 text-red-400 group-hover/btn:scale-110 transition-transform" />
+                      <span className="hidden sm:inline">Finalize</span>
+                    </button>
+                  )}
                 </>
               )}
             </div>
           </div>
           
           <div className="bg-gray-950/30 flex-shrink-0">
-            {minutes && minutes.trim() && minutesAiGenerated && (
+            {isFinalized && (
+              <div className="px-6 py-3 border-b border-white/5">
+                <div className="text-xs font-medium text-emerald-300/80 bg-emerald-500/10 border border-emerald-500/20 px-3 py-2 rounded-lg flex items-start gap-2">
+                  <ShieldCheck className="w-4 h-4 text-emerald-400 mt-0.5 flex-shrink-0" />
+                  <div>
+                    <span className="font-bold">Official Record.</span> These minutes have been finalized and the raw audio and transcript files have been permanently purged.
+                  </div>
+                </div>
+              </div>
+            )}
+            {!isFinalized && minutes && minutes.trim() && minutesAiGenerated && (
               <div className="px-6 py-3 border-b border-white/5">
                 <div className="text-xs font-medium text-amber-300/80 bg-amber-500/10 border border-amber-500/20 px-3 py-2 rounded-lg flex items-start gap-2">
                   <div className="w-1.5 h-1.5 rounded-full bg-amber-400 mt-1.5 flex-shrink-0 animate-pulse" />
                   <div>
-                    AI-generated draft. <button onClick={startMinutesEdit} className="underline hover:text-amber-200">Edit and save</button> to mark as human-reviewed.
+                    AI-generated draft. Review and <button onClick={startMinutesEdit} className="underline hover:text-amber-200">edit</button>, then <button onClick={() => setShowFinalizeConfirm(true)} className="underline hover:text-amber-200">finalize</button> when ready.
                     {saveError && <div className="text-red-400 mt-1">{saveError}</div>}
                   </div>
                 </div>
@@ -519,5 +568,77 @@ export default function OutputPanels({
         )}
       </AnimatePresence>
     </motion.div>
+
+      {/* ── FINALIZE CONFIRMATION MODAL ── */}
+      <AnimatePresence>
+        {showFinalizeConfirm && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[300] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm"
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              transition={{ type: "spring", damping: 25, stiffness: 300 }}
+              className="bg-gray-900 border border-white/10 rounded-2xl shadow-2xl max-w-md w-full overflow-hidden"
+            >
+              {/* Header */}
+              <div className="px-6 pt-6 pb-4 flex items-start gap-4">
+                <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-xl flex-shrink-0">
+                  <AlertTriangle className="w-6 h-6 text-red-400" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-white">Finalize Minutes & Purge Raw Data</h3>
+                  <p className="text-sm text-gray-400 mt-1 leading-relaxed">
+                    Are you sure? This will mark the minutes as the <span className="text-white font-semibold">official record</span> and
+                    <span className="text-red-400 font-semibold"> permanently delete</span> the raw audio and transcription files.
+                  </p>
+                </div>
+              </div>
+
+              {/* Warning box */}
+              <div className="mx-6 mb-4 px-4 py-3 bg-red-500/5 border border-red-500/15 rounded-xl">
+                <p className="text-xs text-red-300/90 font-medium flex items-center gap-2">
+                  <Shield className="w-4 h-4 flex-shrink-0" />
+                  This action cannot be undone.
+                </p>
+              </div>
+
+              {finalizeError && (
+                <div className="mx-6 mb-4 px-4 py-2 bg-red-500/10 border border-red-500/20 rounded-lg text-xs text-red-400 font-medium">
+                  {finalizeError}
+                </div>
+              )}
+
+              {/* Actions */}
+              <div className="px-6 pb-6 flex items-center justify-end gap-3">
+                <button
+                  onClick={() => { setShowFinalizeConfirm(false); setFinalizeError(""); }}
+                  disabled={isFinalizing}
+                  className="px-4 py-2 text-sm font-semibold bg-gray-800 hover:bg-gray-700 text-white rounded-lg transition-colors border border-white/5 disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleFinalize}
+                  disabled={isFinalizing}
+                  className="flex items-center gap-2 px-4 py-2 text-sm font-semibold bg-red-600 hover:bg-red-500 text-white rounded-lg transition-colors shadow-lg shadow-red-500/20 disabled:opacity-50"
+                >
+                  {isFinalizing ? (
+                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  ) : (
+                    <ShieldCheck className="w-4 h-4" />
+                  )}
+                  {isFinalizing ? "Finalizing…" : "Finalize & Purge"}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </>
   );
 }

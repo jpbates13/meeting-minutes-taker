@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { fetchMeetings, fetchMeeting, patchMeeting } from "../api/meetings";
 import { API_URL } from "../config";
-import { Clock, ChevronDown, ChevronUp, Play, Square, Edit2, PlayCircle, X, Check, CheckCircle2, FileAudio, FileText, FileCode2 } from "lucide-react";
+import { Clock, ChevronDown, ChevronUp, Play, Square, Edit2, PlayCircle, X, Check, CheckCircle2, FileAudio, FileText, FileCode2, ShieldCheck } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
 export default function MeetingHistory({ onLoad }) {
@@ -49,6 +49,7 @@ export default function MeetingHistory({ onLoad }) {
         data.minutes ?? "",
         meeting.id,
         Boolean(data.minutes_ai_generated),
+        data.finalized_at ?? null,
       );
     } catch (err) {
       console.error("Failed to load meeting:", err);
@@ -229,17 +230,24 @@ export default function MeetingHistory({ onLoad }) {
                             {m.mode === "audio" ? "Audio" : "Text"}
                           </span>
                           
-                          <div className="flex items-center gap-2 text-gray-400 opacity-80">
-                            {m.has_transcript && <span className="flex items-center gap-1"><CheckCircle2 className="w-3 h-3 text-emerald-400" /> Trans</span>}
-                            {m.has_minutes && <span className="flex items-center gap-1"><CheckCircle2 className="w-3 h-3 text-emerald-400" /> Min</span>}
-                            {m.has_agenda && <span className="flex items-center gap-1"><CheckCircle2 className="w-3 h-3 text-blue-400" /> Agd</span>}
-                          </div>
+                          {m.finalized_at ? (
+                            <span className="flex items-center gap-1.5 px-2 py-1 rounded-md border bg-emerald-500/10 text-emerald-300 border-emerald-500/20">
+                              <ShieldCheck className="w-3 h-3" />
+                              Finalized
+                            </span>
+                          ) : (
+                            <div className="flex items-center gap-2 text-gray-400 opacity-80">
+                              {m.has_transcript && <span className="flex items-center gap-1"><CheckCircle2 className="w-3 h-3 text-emerald-400" /> Trans</span>}
+                              {m.has_minutes && <span className="flex items-center gap-1"><CheckCircle2 className="w-3 h-3 text-emerald-400" /> Min</span>}
+                              {m.has_agenda && <span className="flex items-center gap-1"><CheckCircle2 className="w-3 h-3 text-blue-400" /> Agd</span>}
+                            </div>
+                          )}
                         </div>
                       </div>
 
                       {/* Actions */}
                       <div className="flex items-center gap-3 flex-shrink-0 w-full sm:w-auto mt-2 sm:mt-0 pt-3 sm:pt-0 border-t border-white/5 sm:border-0 justify-end">
-                        {m.has_audio && (
+                        {m.has_audio && !m.finalized_at && (
                           <button
                             onClick={() => togglePlayer(m.id)}
                             title={playingId === m.id ? "Close player" : "Play recording"}

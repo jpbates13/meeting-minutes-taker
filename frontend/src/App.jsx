@@ -18,22 +18,26 @@ export default function App() {
 
   const {
     isRecording,
+    isPaused,
     elapsedFormatted,
     savedChunks,
     status,
     transcript,
     minutes,
     minutesAiGenerated,
+    isFinalized,
     jobId,
     pipelineSteps,
     pipelineMessage,
     startRecording,
     stopRecording,
+    togglePause,
     setAgendaFile,
     uploadAudioFile,
     uploadTranscriptFile,
     loadMeeting,
     saveMinutes,
+    finalizeMinutes,
     clearMeeting,
     canvasRef,
     clearCanvas,
@@ -63,8 +67,10 @@ export default function App() {
             transcript={transcript || ""}
             minutes={minutes || ""}
             minutesAiGenerated={minutesAiGenerated}
+            isFinalized={isFinalized}
             jobId={jobId}
             onSaveMinutes={saveMinutes}
+            onFinalizeMinutes={finalizeMinutes}
             onClose={clearMeeting}
           />
         </main>
@@ -195,11 +201,13 @@ export default function App() {
               >
                 <RecordingControls
                   isRecording={isRecording}
+                  isPaused={isPaused}
                   elapsedFormatted={elapsedFormatted}
                   savedChunks={savedChunks}
                   canvasRef={canvasRef}
                   onStart={() => startRecording(selectedProfileId, useLocalLlm)}
                   onStop={stopRecording}
+                  onTogglePause={togglePause}
                   onAgendaChange={setAgendaFile}
                 />
               </motion.div>

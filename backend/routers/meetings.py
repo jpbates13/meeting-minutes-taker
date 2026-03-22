@@ -1,11 +1,13 @@
 """
 Meetings history routes.
 
-Provides read/write access to past meeting records stored on disk.
+Provides read/write access to past meeting records stored on disk,
+and the finalization endpoint for document retention policy.
 """
 
 import datetime
 import json
+import logging
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException
@@ -103,6 +105,7 @@ def get_meeting(job_id: str):
         if minutes_path.exists()
         else None,
         "minutes_ai_generated": minutes_ai_generated,
+        "finalized_at": meta.get("finalized_at"),
         "profile_id": meta.get("profile_id", DEFAULT_PROFILE_ID) if meta_path.exists() else DEFAULT_PROFILE_ID,
     }
 
@@ -122,7 +125,11 @@ def rename_meeting(job_id: str, body: dict):
 
 @router.patch("/{job_id}/minutes")
 def update_meeting_minutes(job_id: str, body: dict):
-    """Persist manually edited minutes and mark the record as human-edited."""
+    """Persist manually edited minutes.
+
+    Editing no longer changes the review status — use the ``/finalize``
+    endpoint to explicitly mark the record as human-reviewed.
+    """
     job_dir = resolve_job_dir(job_id)
 
     minutes = body.get("minutes")
@@ -133,10 +140,83 @@ def update_meeting_minutes(job_id: str, body: dict):
     update_meta(
         job_dir,
         has_minutes=True,
-        minutes_ai_generated=False,
         minutes_last_edited_at=datetime.datetime.now(datetime.timezone.utc).isoformat(),
     )
     return {"ok": True}
+
+
+log = logging.getLogger(__name__)
+
+# File extensions to purge during finalization
+_AUDIO_EXTENSIONS = {".webm", ".wav", ".mp3", ".m4a", ".ogg", ".mp4", ".flac"}
+
+
+@router.post("/{job_id}/finalize")
+def finalize_meeting(job_id: str):
+    """Mark the minutes as the official human-reviewed record and purge raw data.
+
+    This is a **destructive, irreversible** operation.  It:
+
+    1. Sets ``human_reviewed`` and clears ``minutes_ai_generated``.
+    2. Permanently deletes the raw audio file(s) and the transcript.
+    3. Preserves ``minutes.md``, ``meta.json``, and any agenda files.
+    """
+    job_dir = resolve_job_dir(job_id)
+
+    # Guard: must have minutes to finalize
+    minutes_path = job_dir / "minutes.md"
+    if not minutes_path.exists():
+        raise HTTPException(
+            status_code=400,
+            detail="Cannot finalize: no minutes file exists for this meeting.",
+        )
+
+    # Guard: already finalized
+    meta_path = job_dir / "meta.json"
+    if meta_path.exists():
+        try:
+            meta = json.loads(meta_path.read_text(encoding="utf-8"))
+            if meta.get("finalized_at"):
+                raise HTTPException(
+                    status_code=409,
+                    detail="This meeting has already been finalized.",
+                )
+        except json.JSONDecodeError:
+            pass
+
+    # ── 1. Update metadata ──────────────────────────────────────────
+    update_meta(
+        job_dir,
+        human_reviewed=True,
+        minutes_ai_generated=False,
+        finalized_at=datetime.datetime.now(datetime.timezone.utc).isoformat(),
+    )
+
+    # ── 2. Purge raw files ──────────────────────────────────────────
+    purged: list[str] = []
+
+    # Audio files (audio.webm, audio.wav, etc.)
+    for f in job_dir.iterdir():
+        if f.is_file() and f.stem == "audio" and f.suffix.lower() in _AUDIO_EXTENSIONS:
+            try:
+                f.unlink()
+                purged.append(f.name)
+                log.info("🗑️  Purged %s for job %s", f.name, job_id)
+            except OSError as exc:
+                log.warning("Failed to delete %s for job %s: %s", f.name, job_id, exc)
+
+    # Transcript
+    transcript_path = job_dir / "transcript.txt"
+    try:
+        transcript_path.unlink(missing_ok=True)
+        if transcript_path.name not in purged:  # only log if it existed
+            purged.append(transcript_path.name)
+        log.info("🗑️  Purged transcript.txt for job %s", job_id)
+    except OSError as exc:
+        log.warning("Failed to delete transcript.txt for job %s: %s", job_id, exc)
+
+    print(f"🔒 Finalized meeting {job_id} — purged {purged}")
+    return {"ok": True, "purged_files": purged}
 
 
 @router.get("/{job_id}/audio")

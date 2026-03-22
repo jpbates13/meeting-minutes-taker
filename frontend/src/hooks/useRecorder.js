@@ -67,6 +67,7 @@ export default function useRecorder() {
 
   // Recording-specific state
   const [isRecording, setIsRecording] = useState(false);
+  const [isPaused, setIsPaused] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   const [savedChunks, setSavedChunks] = useState(0);
   const [recoverableSession, setRecoverableSession] = useState(null);
@@ -76,6 +77,7 @@ export default function useRecorder() {
   const audioStreamRef = useRef(null);
   const timerRef = useRef(null);
   const startTimeRef = useRef(null);
+  const pausedAccumulatedRef = useRef(0);
   const agendaFileRef = useRef(null);
 
   // Chunk-writing state — tracks the current session
@@ -114,9 +116,14 @@ export default function useRecorder() {
 
   const startTimer = useCallback(() => {
     startTimeRef.current = Date.now();
+    pausedAccumulatedRef.current = 0;
     setElapsed(0);
     timerRef.current = setInterval(() => {
-      setElapsed(Math.floor((Date.now() - startTimeRef.current) / 1000));
+      setElapsed(
+        Math.floor(
+          (Date.now() - startTimeRef.current - pausedAccumulatedRef.current) / 1000,
+        ),
+      );
     }, 500);
   }, []);
 
@@ -249,9 +256,33 @@ export default function useRecorder() {
     setRecoverableSession(null);
   }, [pipeline, waveform, startTimer, uploadRecording]);
 
+  // ── Pause / Resume ("Off the Record") ──
+
+  const togglePause = useCallback(() => {
+    const recorder = mediaRecorderRef.current;
+    if (!recorder || recorder.state === "inactive") return;
+
+    if (recorder.state === "recording") {
+      recorder.pause();
+      // Snapshot the running-time offset so the timer freezes
+      pausedAccumulatedRef._pauseStart = Date.now();
+      setIsPaused(true);
+      pipeline.setStatus("⏸️ Off the Record — audio paused");
+    } else if (recorder.state === "paused") {
+      // Accumulate the time we spent paused so the timer stays correct
+      pausedAccumulatedRef.current +=
+        Date.now() - (pausedAccumulatedRef._pauseStart || Date.now());
+      recorder.resume();
+      setIsPaused(false);
+      pipeline.setStatus("Recording…");
+    }
+  }, [pipeline]);
+
   const stopRecording = useCallback(() => {
     const recorder = mediaRecorderRef.current;
     if (recorder && recorder.state !== "inactive") {
+      // If paused, resume briefly so the final dataavailable fires
+      if (recorder.state === "paused") recorder.resume();
       recorder.stop();
     }
     const stream = audioStreamRef.current;
@@ -260,6 +291,7 @@ export default function useRecorder() {
       audioStreamRef.current = null;
     }
     setIsRecording(false);
+    setIsPaused(false);
     stopTimer();
     waveform.stopWaveform();
   }, [stopTimer, waveform]);
@@ -363,6 +395,7 @@ export default function useRecorder() {
   return {
     // Recording state
     isRecording,
+    isPaused,
     elapsed,
     elapsedFormatted: formatTime(elapsed),
     savedChunks,
@@ -372,11 +405,13 @@ export default function useRecorder() {
     transcript: pipeline.transcript,
     minutes: pipeline.minutes,
     minutesAiGenerated: pipeline.minutesAiGenerated,
+    isFinalized: pipeline.isFinalized,
     pipelineSteps: pipeline.pipelineSteps,
     pipelineMessage: pipeline.pipelineMessage,
     jobId: pipeline.jobId,
     loadMeeting: pipeline.loadMeeting,
     saveMinutes: pipeline.saveMinutes,
+    finalizeMinutes: pipeline.finalizeMinutes,
     clearMeeting: pipeline.resetOutput,
     // Waveform (from useWaveform)
     canvasRef: waveform.canvasRef,
@@ -384,6 +419,7 @@ export default function useRecorder() {
     // Actions
     startRecording,
     stopRecording,
+    togglePause,
     setAgendaFile,
     uploadAudioFile,
     uploadTranscriptFile,

@@ -8,7 +8,7 @@
 
 import { useState, useCallback } from "react";
 import { WS_URL } from "../config";
-import { patchMeetingMinutes } from "../api/meetings";
+import { patchMeetingMinutes, finalizeMinutes as apiFinalizeMinutes } from "../api/meetings";
 import {
   buildInitialSteps,
   advanceTo,
@@ -23,6 +23,7 @@ export default function usePipeline() {
   const [transcript, setTranscript] = useState("");
   const [minutes, setMinutes] = useState("");
   const [minutesAiGenerated, setMinutesAiGenerated] = useState(false);
+  const [isFinalized, setIsFinalized] = useState(false);
   const [jobId, setJobId] = useState(null);
 
   /** Reset all output state (call before starting a new job). */
@@ -30,6 +31,7 @@ export default function usePipeline() {
     setTranscript("");
     setMinutes("");
     setMinutesAiGenerated(false);
+    setIsFinalized(false);
     setPipelineSteps([]);
     setPipelineMessage("");
     setJobId(null);
@@ -112,10 +114,12 @@ export default function usePipeline() {
       newMinutes,
       jobId = null,
       newMinutesAiGenerated = false,
+      finalizedAt = null,
     ) => {
     setTranscript(newTranscript);
     setMinutes(newMinutes);
     setMinutesAiGenerated(newMinutesAiGenerated);
+    setIsFinalized(!!finalizedAt);
     setPipelineSteps([]);
     setPipelineMessage("");
     setStatus("Loaded past meeting.");
@@ -130,7 +134,16 @@ export default function usePipeline() {
       if (!jobId) throw new Error("No meeting selected.");
       await patchMeetingMinutes(jobId, updatedMinutes);
       setMinutes(updatedMinutes);
+    },
+    [jobId],
+  );
+
+  const finalizeMinutes = useCallback(
+    async () => {
+      if (!jobId) throw new Error("No meeting selected.");
+      await apiFinalizeMinutes(jobId);
       setMinutesAiGenerated(false);
+      setIsFinalized(true);
     },
     [jobId],
   );
@@ -143,10 +156,12 @@ export default function usePipeline() {
     transcript,
     minutes,
     minutesAiGenerated,
+    isFinalized,
     jobId,
     connect,
     loadMeeting,
     saveMinutes,
+    finalizeMinutes,
     resetOutput,
   };
 }

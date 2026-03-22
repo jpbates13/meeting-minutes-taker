@@ -16,6 +16,22 @@
   box-shadow: 0 0 10px rgba(244, 63, 94, 0.4);
 }
 
+/* Pulse animation for the paused / "Off the Record" indicator */
+@keyframes pulse-amber {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+
+.paused-pulse {
+  animation: pulse-amber 1.4s ease-in-out infinite;
+  box-shadow: 0 0 12px rgba(245, 158, 11, 0.45);
+}
+
 /* Spinner for pipeline checklist */
 @keyframes spin-slow {
   to {

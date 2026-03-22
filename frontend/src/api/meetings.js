@@ -58,3 +58,19 @@ export async function patchMeetingMinutes(id, minutes) {
   if (!res.ok) throw new Error(`Server ${res.status}`);
   return res.json();
 }
+
+/**
+ * Finalize a meeting: mark as human-reviewed and permanently purge raw files.
+ * @param {string} id  job_id
+ * @returns {Promise<{ok: boolean, purged_files: string[]}>}
+ */
+export async function finalizeMinutes(id) {
+  const res = await fetch(`${API_URL}/meetings/${id}/finalize`, {
+    method: "POST",
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(text || `Server ${res.status}`);
+  }
+  return res.json();
+}
