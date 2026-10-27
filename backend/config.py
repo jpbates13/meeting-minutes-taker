@@ -31,10 +31,11 @@ LOCAL_LLM_MODEL_ID = os.getenv("LOCAL_LLM_MODEL_ID", "Qwen/Qwen2.5-7B-Instruct")
 
 # Optional: run the local LLM on a shared OpenAI-compatible server (e.g. Ollama
 # at http://ai-llm:11434/v1) instead of loading LOCAL_LLM_MODEL_ID in-process.
-# With Ollama, use a model whose num_ctx fits a full meeting (its /v1 endpoint
-# ignores per-request context settings and silently truncates long prompts).
+# With Ollama, set OLLAMA_CONTEXT_LENGTH on the server high enough for a full
+# meeting (e.g. 32768): its /v1 endpoint ignores per-request context settings
+# and silently truncates long prompts.
 LOCAL_LLM_BASE_URL = os.getenv("LOCAL_LLM_BASE_URL", "")
-LOCAL_LLM_MODEL = os.getenv("LOCAL_LLM_MODEL", "gemma4:12b-32k")
+LOCAL_LLM_MODEL = os.getenv("LOCAL_LLM_MODEL", "gemma4:12b")
 
 # ---------------------------------------------------------------------------
 # Speech-to-text

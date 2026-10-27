@@ -13,7 +13,7 @@ services:
     environment:
       STT_URL: ${STT_URL:-http://ai-stt-whisper:8000/v1}
       LOCAL_LLM_BASE_URL: ${LOCAL_LLM_BASE_URL:-http://ai-llm:11434/v1}
-      LOCAL_LLM_MODEL: ${LOCAL_LLM_MODEL:-gemma4:12b-32k}
+      LOCAL_LLM_MODEL: ${LOCAL_LLM_MODEL:-gemma4:12b}
       ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-*}
       HF_HOME: /cache/huggingface
     volumes:
