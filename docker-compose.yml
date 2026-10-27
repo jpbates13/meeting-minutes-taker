@@ -1,0 +1,42 @@
+# Runs the app on a box that already has shared AI services on the external "ai"
+# Docker network: an OpenAI-compatible speech service (ai-stt-whisper) and LLM
+# server (ai-llm, Ollama). Both ports are bound to localhost; put a reverse proxy
+# in front that serves the frontend at / and the backend at /api (HTTPS is needed
+# for the microphone). See .env.example for settings.
+name: minutes
+
+services:
+  backend:
+    build: ./backend
+    container_name: minutes-backend
+    env_file: [{ path: .env, required: false }]
+    environment:
+      STT_URL: ${STT_URL:-http://ai-stt-whisper:8000/v1}
+      LOCAL_LLM_BASE_URL: ${LOCAL_LLM_BASE_URL:-http://ai-llm:11434/v1}
+      LOCAL_LLM_MODEL: ${LOCAL_LLM_MODEL:-gemma4:12b-32k}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-*}
+      HF_HOME: /cache/huggingface
+    volumes:
+      - data:/data
+      - cache:/cache
+    ports: ["127.0.0.1:8011:8001"]
+    networks: [ai]
+    gpus: all
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        VITE_BACKEND_HOST: ${PUBLIC_HOST:-localhost}/api
+    container_name: minutes-frontend
+    ports: ["127.0.0.1:8012:80"]
+    restart: unless-stopped
+
+volumes:
+  data:
+  cache:
+
+networks:
+  ai:
+    external: true

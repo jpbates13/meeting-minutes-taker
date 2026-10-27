@@ -17,7 +17,7 @@ imported below:
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from config import DATA_DIR, HOST, PORT
+from config import ALLOWED_ORIGINS, DATA_DIR, HOST, PORT
 from routers import jobs, meetings, pipeline, profiles
 
 # ---------------------------------------------------------------------------
@@ -27,7 +27,7 @@ app = FastAPI(title="Meeting Minutes Taker API")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # running over Tailscale — all origins are trusted
+    allow_origins=ALLOWED_ORIGINS,  # "*" by default: running over Tailscale, all origins are trusted
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

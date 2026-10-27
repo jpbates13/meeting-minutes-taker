@@ -20,11 +20,62 @@ from threading import Thread
 import torch
 from fastapi import WebSocket
 
-from config import LOCAL_LLM_MODEL_ID, STEP_MESSAGES, DEFAULT_PROFILE_ID
+from config import LOCAL_LLM_BASE_URL, LOCAL_LLM_MODEL, LOCAL_LLM_MODEL_ID, STEP_MESSAGES, DEFAULT_PROFILE_ID
 from meeting_profiles import build_system_prompt, get_profile
 from storage import update_meta
 
 logger = logging.getLogger(__name__)
+
+
+async def _stream_minutes_server(
+    websocket: WebSocket,
+    job_dir: Path,
+    job_id: str,
+    system_prompt: str,
+    user_content: str,
+) -> None:
+    """Generate minutes on the OpenAI-compatible server at LOCAL_LLM_BASE_URL
+    (e.g. Ollama), which owns loading and unloading the model."""
+    from openai import AsyncOpenAI
+
+    client = AsyncOpenAI(base_url=LOCAL_LLM_BASE_URL, api_key=os.getenv("LOCAL_LLM_API_KEY", "none"), timeout=1800)
+
+    await websocket.send_json({
+        "status": "processing",
+        "step": "generating_minutes_local",
+        "message": STEP_MESSAGES.get(
+            "generating_minutes_local",
+            "Generating meeting minutes with local LLM…",
+        ),
+    })
+    print(f"🤖 Generating minutes with {LOCAL_LLM_MODEL} at {LOCAL_LLM_BASE_URL} for job {job_id}")
+
+    stream = await client.chat.completions.create(
+        model=LOCAL_LLM_MODEL,
+        messages=[
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_content},
+        ],
+        max_tokens=4096,
+        temperature=0.7,
+        stream=True,
+    )
+
+    full_minutes: list[str] = []
+    async for chunk in stream:
+        delta = chunk.choices[0].delta if chunk.choices else None
+        if delta and delta.content:
+            full_minutes.append(delta.content)
+            await websocket.send_json({"status": "minutes_chunk", "text": delta.content})
+
+    minutes_text = "".join(full_minutes)
+    (job_dir / "minutes.md").write_text(minutes_text, encoding="utf-8")
+    update_meta(job_dir, has_minutes=True, minutes_ai_generated=True)
+    print(f"✅ Local LLM minutes saved for job {job_id} ({len(minutes_text)} chars)")
+
+    await websocket.send_json({"status": "complete"})
+    await websocket.close(code=1000)
+    print(f"✅ WebSocket closed normally for job {job_id}")
 
 
 async def stream_minutes_local(
@@ -46,8 +97,6 @@ async def stream_minutes_local(
       - Async-safe streaming via asyncio.to_thread to avoid blocking FastAPI
       - Nuclear VRAM teardown: all local tensors + model + tokenizer
     """
-    from transformers import AutoTokenizer, AutoModelForCausalLM, BitsAndBytesConfig, TextIteratorStreamer
-
     await websocket.send_json({
         "status": "processing",
         "step": "loading_local_llm",
@@ -71,6 +120,12 @@ async def stream_minutes_local(
     user_content = f"## Transcript\n\n{transcript}"
     if agenda_text:
         user_content += f"\n\n## Agenda\n\n{agenda_text}"
+
+    if LOCAL_LLM_BASE_URL:
+        await _stream_minutes_server(websocket, job_dir, job_id, system_prompt, user_content)
+        return
+
+    from transformers import AutoTokenizer, AutoModelForCausalLM, BitsAndBytesConfig, TextIteratorStreamer
 
     model = None
     tokenizer = None

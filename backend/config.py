@@ -29,6 +29,27 @@ LLM_AUDIO_MODEL = "gpt-5.4"       # used after full audio → transcript pipelin
 LLM_TRANSCRIPT_MODEL = "gpt-5-mini"  # used for transcript-only jobs
 LOCAL_LLM_MODEL_ID = os.getenv("LOCAL_LLM_MODEL_ID", "Qwen/Qwen2.5-7B-Instruct")
 
+# Optional: run the local LLM on a shared OpenAI-compatible server (e.g. Ollama
+# at http://ai-llm:11434/v1) instead of loading LOCAL_LLM_MODEL_ID in-process.
+# With Ollama, use a model whose num_ctx fits a full meeting (its /v1 endpoint
+# ignores per-request context settings and silently truncates long prompts).
+LOCAL_LLM_BASE_URL = os.getenv("LOCAL_LLM_BASE_URL", "")
+LOCAL_LLM_MODEL = os.getenv("LOCAL_LLM_MODEL", "gemma4:12b-32k")
+
+# ---------------------------------------------------------------------------
+# Speech-to-text
+# ---------------------------------------------------------------------------
+# Optional: send transcription to a shared OpenAI-compatible speech service
+# (e.g. speaches at http://ai-stt-whisper:8000/v1). Alignment and diarization
+# still run locally. Unset → WhisperX transcribes in-process as before.
+STT_URL = os.getenv("STT_URL", "")
+STT_MODEL = os.getenv("STT_MODEL", "Systran/faster-whisper-large-v3")
+STT_CHUNK_SECONDS = int(os.getenv("STT_CHUNK_SECONDS", 120))
+STT_CONCURRENCY = int(os.getenv("STT_CONCURRENCY", 2))
+
+# Comma-separated CORS origins; "*" (the default) allows any origin.
+ALLOWED_ORIGINS = [o.strip() for o in os.getenv("ALLOWED_ORIGINS", "*").split(",") if o.strip()]
+
 DEFAULT_PROFILE_ID = "general"
 DEFAULT_ORGANIZATION_NAME = "Your Organization"
 
