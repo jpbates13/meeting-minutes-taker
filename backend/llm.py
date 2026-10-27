@@ -8,6 +8,7 @@ WebSocket connection.
 
 from pathlib import Path
 import json
+import os
 
 from fastapi import WebSocket
 from openai import OpenAI
@@ -16,7 +17,8 @@ from config import DEFAULT_PROFILE_ID, STEP_MESSAGES
 from meeting_profiles import build_system_prompt, get_profile
 from storage import update_meta
 
-client = OpenAI()  # reads OPENAI_API_KEY from env
+# Reads OPENAI_API_KEY from env. Optional when only the local LLM is used.
+client = OpenAI() if os.getenv("OPENAI_API_KEY") else None
 
 
 async def stream_minutes(
@@ -38,6 +40,8 @@ async def stream_minutes(
         "message": STEP_MESSAGES["generating_minutes"],
     })
     print(f"🤖 Generating minutes for job {job_id}")
+    if client is None:
+        raise RuntimeError("OPENAI_API_KEY is not set; use the local LLM option instead.")
 
     profile_id = DEFAULT_PROFILE_ID
     meta_path = job_dir / "meta.json"

@@ -10,15 +10,18 @@ Usage:
 """
 
 import gc
+import io
 import os
 import logging
+import wave
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Callable, Optional
 
 import torch
 from whisperx.diarize import DiarizationPipeline
 
-from config import AUDIO_TARGET_BITRATE
+from config import AUDIO_TARGET_BITRATE, STT_CHUNK_SECONDS, STT_CONCURRENCY, STT_MODEL, STT_URL
 
 # Point pydub at the bundled ffmpeg.exe (must be in backend/ dir)
 _FFMPEG_PATH = str(Path(__file__).resolve().parent / "ffmpeg.exe")
@@ -76,7 +79,79 @@ def preprocess_audio(
 
 
 # ---------------------------------------------------------------------------
-# 2. Transcription, alignment & diarization
+# 2a. Remote transcription (shared OpenAI-compatible speech service)
+# ---------------------------------------------------------------------------
+def _chunk_bounds(audio, chunk_seconds: int) -> list[tuple[int, int]]:
+    """Split *audio* into ~chunk_seconds windows, cutting each at the quietest
+    100 ms in its last 15 s so words are rarely split across chunks."""
+    import numpy as np
+
+    size = chunk_seconds * TARGET_SAMPLE_RATE
+    search = 15 * TARGET_SAMPLE_RATE
+    frame = TARGET_SAMPLE_RATE // 10
+    bounds, start = [], 0
+    while len(audio) - start > size:
+        lo = start + size - search
+        frames = audio[lo:start + size][: (search // frame) * frame].reshape(-1, frame)
+        cut = lo + int(np.argmin((frames ** 2).mean(axis=1))) * frame + frame // 2
+        bounds.append((start, cut))
+        start = cut
+    bounds.append((start, len(audio)))
+    return bounds
+
+
+def _to_wav(samples) -> bytes:
+    import numpy as np
+
+    buf = io.BytesIO()
+    with wave.open(buf, "wb") as w:
+        w.setnchannels(1)
+        w.setsampwidth(2)
+        w.setframerate(TARGET_SAMPLE_RATE)
+        w.writeframes((np.clip(samples, -1, 1) * 32767).astype("<i2").tobytes())
+    return buf.getvalue()
+
+
+def transcribe_remote(audio, job_id: str, _progress: Callable[[str, str], None]) -> dict:
+    """Transcribe with the speech service at STT_URL, in chunks so other users of
+    a shared service are not blocked for the length of a whole meeting.
+
+    Returns WhisperX-shaped ``{"segments": [{start, end, text}], "language"}``.
+    """
+    from openai import OpenAI
+
+    client = OpenAI(base_url=STT_URL, api_key=os.getenv("STT_API_KEY", "none"), timeout=600)
+    bounds = _chunk_bounds(audio, STT_CHUNK_SECONDS)
+    done = 0
+
+    def _one(bound: tuple[int, int]) -> list[dict]:
+        nonlocal done
+        start, end = bound
+        resp = client.audio.transcriptions.create(
+            model=STT_MODEL,
+            file=("chunk.wav", _to_wav(audio[start:end]), "audio/wav"),
+            language="en",
+            temperature=0,
+            response_format="verbose_json",
+        )
+        offset = start / TARGET_SAMPLE_RATE
+        segments = [
+            {"start": seg.start + offset, "end": seg.end + offset, "text": seg.text.strip()}
+            for seg in (resp.segments or [])
+            if seg.text.strip()
+        ]
+        done += 1
+        _progress("transcribing", f"Chunk {done}/{len(bounds)} transcribed")
+        return segments
+
+    _progress("transcribing", f"Sending {len(bounds)} chunks to {STT_URL}")
+    with ThreadPoolExecutor(max(1, STT_CONCURRENCY)) as pool:
+        segments = [seg for chunk in pool.map(_one, bounds) for seg in chunk]
+    return {"segments": segments, "language": "en"}
+
+
+# ---------------------------------------------------------------------------
+# 2b. Transcription, alignment & diarization
 # ---------------------------------------------------------------------------
 def transcribe_and_diarize(
     clean_path: str,
@@ -85,6 +160,9 @@ def transcribe_and_diarize(
 ) -> str:
     """Run WhisperX transcription + alignment + diarization pipeline
     and return a formatted speaker-attributed transcript.
+
+    When STT_URL is set, transcription is done by that service instead and
+    only alignment and diarization run here.
 
     Automatically selects CUDA (float16) when available, else falls
     back to CPU (float32).
@@ -108,17 +186,20 @@ def transcribe_and_diarize(
     model = None
     try:
         # ---- Transcribe ----
-        _progress("loading_model", "Loading WhisperX model")
-        model = whisperx.load_model(
-            "large-v3",
-            device=device,
-            compute_type=compute_type,
-        )
-
-        _progress("transcribing", "Running WhisperX transcription (en)")
         audio = whisperx.load_audio(clean_path)
-        _progress("vad", "Detecting voice activity segments")
-        result = model.transcribe(audio, batch_size=16, language="en")
+        if STT_URL:
+            result = transcribe_remote(audio, job_id, _progress)
+        else:
+            _progress("loading_model", "Loading WhisperX model")
+            model = whisperx.load_model(
+                "large-v3",
+                device=device,
+                compute_type=compute_type,
+            )
+
+            _progress("transcribing", "Running WhisperX transcription (en)")
+            _progress("vad", "Detecting voice activity segments")
+            result = model.transcribe(audio, batch_size=16, language="en")
         _progress("transcription_done", f"{len(result.get('segments', []))} segments found")
 
         # ---- Align ----

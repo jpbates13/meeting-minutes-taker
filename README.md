@@ -30,3 +30,10 @@ It captures audio via the browser, processes it using local GPU resources (trans
 4. **Clean & Transcribe:** The backend normalizes the audio (16kHz mono, 128 kbps), runs WhisperX for text and speaker diarization, and streams the status back to the client.
 5. **Summarize:** The labeled transcript, agenda, and selected meeting profile are sent to the LLM (Cloud or Local). The drafted minutes are streamed back to the frontend in real-time.
 6. **Review & Purge:** A human operator reviews the draft. Upon clicking "Finalize," the system permanently destroys the raw audio and transcript files, outputting the final official PDF.
+## Running with Docker on shared AI services
+
+On a box that already runs an OpenAI-compatible speech service and LLM server on an external `ai` Docker network (e.g. speaches as `ai-stt-whisper`, Ollama as `ai-llm`), `docker compose up -d --build` starts the backend on `127.0.0.1:8011` and the frontend on `127.0.0.1:8012`. Serve both behind an HTTPS reverse proxy on one host: the frontend at `/` and the backend at `/api` (prefix stripped, WebSockets included). Copy `.env.example` to `.env` and set `PUBLIC_HOST` and `ALLOWED_ORIGINS`.
+
+* **Transcription** goes to `STT_URL` in ~2-minute chunks (cut at quiet points), so a long meeting does not block other users of the service. WhisperX alignment and pyannote diarization still run in the backend container on the GPU; diarization needs `HF_TOKEN`.
+* **Local LLM minutes** go to `LOCAL_LLM_BASE_URL` / `LOCAL_LLM_MODEL` instead of loading a model in-process. Ollama's `/v1` endpoint ignores per-request context sizes, so set `OLLAMA_CONTEXT_LENGTH` on the Ollama server (e.g. `32768`); with the default (4096) long transcripts are silently truncated.
+* With `STT_URL` and `LOCAL_LLM_BASE_URL` unset, the backend behaves exactly as before.
